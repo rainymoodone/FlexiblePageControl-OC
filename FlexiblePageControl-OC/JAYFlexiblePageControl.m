@@ -16,6 +16,7 @@ typedef NS_ENUM(NSInteger, JAYFlexiblePageControlDirection) {
 
 static CGFloat JAYItemViewMediumSizeRatio = 0.7;
 static CGFloat JAYItemViewSmallSizeRatio  = 0.5;
+static NSInteger JAYFlexiblePageControlDisplayCount  = 7;
 
 @interface JAYFlexiblePageControl ()
 
@@ -45,7 +46,7 @@ static CGFloat JAYItemViewSmallSizeRatio  = 0.5;
 #pragma mark - util
 
 - (void)updateDotColorWithCurrentPage:(NSInteger)currentPage{
-    for (int index = 0; index < (self.displayCount + 4); index++) {
+    for (int index = 0; index < self.items.count; index++) {
         NSInteger pageIndex = self.items[index].index;
         self.items[index].dotColor = (pageIndex == self.currentPage) ? self.currentPageIndicatorTintColor : self.pageIndicatorTintColor;
     }
@@ -74,7 +75,7 @@ static CGFloat JAYItemViewSmallSizeRatio  = 0.5;
 
 - (void)updateDotSizeWithCurrentPage:(NSInteger)currentPage animated:(BOOL)animated {
     NSTimeInterval duration = animated ? self.animateDuration : 0;
-    for (int index = 0; index < (self.displayCount + 4); index++) {
+    for (int index = 0; index < self.items.count; index++) {
         JAYItemView *item = self.items[index];
         item.animateDuration = duration;
         if (item.index == currentPage) {
@@ -166,18 +167,26 @@ static CGFloat JAYItemViewSmallSizeRatio  = 0.5;
 }
 
 - (void)update {
-    NSArray *views = self.scrollView.subviews;
-    for (UIView *view in views) {
-        [view removeFromSuperview];
+    if (self.displayCount + 4 < self.items.count) {
+        while (self.displayCount + 4 < self.items.count) {
+            JAYItemView *item = self.items.lastObject;
+            [item removeFromSuperview];
+            [self.items removeLastObject];
+        }
     }
-    
-    NSMutableArray *items = [NSMutableArray array];
-    for (int index = -2; index < (self.displayCount + 2); index++) {
-        JAYItemView *item = [[JAYItemView alloc] initWithItemSize:self.itemSize dotSize:self.dotSize index:index];
-        [items addObject:item];
-        [self.scrollView addSubview:item];
+    for (int index = 0; index < MAX((self.displayCount + 4), self.items.count) ; index++) {
+        JAYItemView *item = nil;
+        if (index < self.items.count) {
+            item = self.items[index];
+            item.index = index - 2;
+            item.state = JAYItemViewStateNormal;
+            item.frame = CGRectMake((index - 2) * self.itemSize, item.frame.origin.y, item.frame.size.width, item.frame.size.height);
+        } else {
+            JAYItemView *item = [[JAYItemView alloc] initWithItemSize:self.itemSize dotSize:self.dotSize index:index - 2];
+            [self.items addObject:item];
+            [self.scrollView addSubview:item];
+        }
     }
-    self.items = items;
     self.scrollView.contentSize = CGSizeMake(self.itemSize * self.numberOfPages, self.itemSize);
     
     CGRect frame = CGRectMake(0, 0, self.itemSize * self.displayCount, self.itemSize);
@@ -225,16 +234,23 @@ static CGFloat JAYItemViewSmallSizeRatio  = 0.5;
     _numberOfPages = numberOfPages;
     self.canScroll = (self.numberOfPages > self.displayCount);
     self.scrollView.hidden = (self.numberOfPages <= 1 && self.hidesForSinglePage);
-    self.displayCount = MIN(self.displayCount, self.numberOfPages);
+    _displayCount = JAYFlexiblePageControlDisplayCount;
+    _displayCount = MIN(self.displayCount, self.numberOfPages);
+    self.canScroll = (self.numberOfPages > self.displayCount);
+    [self update];
+    self.currentPage = 0;
+    [self updateViewSize];
 }
 
 - (void)setDisplayCount:(NSInteger)displayCount {
-//    if (_displayCount == displayCount) {
-//        return;
-//    }
+    if (_displayCount == displayCount) {
+        return;
+    }
+    JAYFlexiblePageControlDisplayCount = displayCount;
     _displayCount = displayCount;
     self.canScroll = (self.numberOfPages > self.displayCount);
     [self update];
+    [self updateViewSize];
 }
 
 - (void)setDotSize:(CGFloat)dotSize {
@@ -283,13 +299,20 @@ static CGFloat JAYItemViewSmallSizeRatio  = 0.5;
     return self.dotSize + self.dotSpace;
 }
 
+- (NSMutableArray<JAYItemView *> *)items {
+    if (_items == nil) {
+        _items = [NSMutableArray array];
+    }
+    return _items;
+}
+
 #pragma mark - setup
 
 - (void)variableInit {
-    self.pageIndicatorTintColor = [UIColor colorWithRed:0.86 green:0.86 blue:0.86 alpha:1.00];
-    self.currentPageIndicatorTintColor = [UIColor colorWithRed:0.32 green:0.59 blue:0.91 alpha:1.00];;
-    self.dotSize = 6;
-    self.dotSpace = 4;
+    _pageIndicatorTintColor = [UIColor colorWithRed:0.86 green:0.86 blue:0.86 alpha:1.00];
+    _currentPageIndicatorTintColor = [UIColor colorWithRed:0.32 green:0.59 blue:0.91 alpha:1.00];;
+    _dotSize = 6;
+    _dotSpace = 4;
     self.smallDotSizeRatio = 0.5;
     self.mediumDotSizeRatio = 0.7;
     self.animateDuration = 0.3;
